@@ -3,15 +3,12 @@ from werkzeug.exceptions import NotFound, BadRequest, Conflict, HTTPException
 
 errors_bp = Blueprint("errors", __name__)
 
-@errors_bp.errorhandler(HTTPException)
+@errors_bp.app_errorhandler(HTTPException)
 def handle_http_exception(e):
-    response = {
-        "error": e.name,          
-        "message": e.description   
-    }
-    return jsonify(response), e.code
+    # Formats error message as "404 Not Found: description"
+    return jsonify({"ERROR": f"{e.code} {e.name}: {e.description}"}), e.code
 
-@errors_bp.errorhandler(Exception)
+@errors_bp.app_errorhandler(Exception)
 def handle_unexpected_error(e):
     print(f"Unexpected Error: {e}") 
     
