@@ -1,14 +1,15 @@
 from flask import jsonify, request, Blueprint
 from werkzeug.exceptions import NotFound, BadRequest, Conflict, UnprocessableEntity
 from bson import ObjectId, errors as bson_errors
-from db import db
+from db import get_collection
 
 
 tasks_bp = Blueprint("tasks", __name__)
 
 @tasks_bp.route("/tasks", methods=["GET"])
 def get_all_tasks_route():
-    tasks_list = list(db.todo.find({}))
+    col = get_collection("todo")
+    tasks_list = list(col.find({}))
     for task in tasks_list:
         task["_id"] = str(task["_id"])
     return jsonify(tasks_list)
@@ -18,8 +19,9 @@ def get_all_tasks_route():
 # GET Task by ID
 @tasks_bp.route("/tasks/<task_id>", methods=["GET"])
 def get_task(task_id):
+    col = get_collection("todo")
     try:
-        task = db.todo.find_one({"_id": ObjectId(task_id)})
+        task = col.find_one({"_id": ObjectId(task_id)})
     except bson_errors.InvalidId:
         raise BadRequest(f"Invalid ID format: {task_id}")
     
@@ -33,6 +35,7 @@ def get_task(task_id):
 # POST Create Task
 @tasks_bp.route("/tasks", methods=["POST"])
 def create_task():
+    col = get_collection("todo")
     data = request.get_json(silent=True)
     
     # Ensure body is JSON
@@ -50,7 +53,7 @@ def create_task():
         raise UnprocessableEntity("title must contain text")
     
     # Check for duplicates in DB
-    if db.todo.find_one({"title": new_title}):
+    if col.find_one({"title": new_title}):
         raise Conflict("Task with this title already exists")
 
 
@@ -59,7 +62,7 @@ def create_task():
         "completed": False
     }
     
-    db.todo.insert_one(new_task)
+    col.insert_one(new_task)
     new_task["_id"] = str(new_task["_id"])
     
     return jsonify({
@@ -72,6 +75,7 @@ def create_task():
 # PUT Update Task
 @tasks_bp.route("/tasks/<task_id>", methods=["PUT"])
 def update_task(task_id):
+    col = get_collection("todo")
     try:
         oid = ObjectId(task_id)
     except bson_errors.InvalidId:
@@ -94,13 +98,13 @@ def update_task(task_id):
         raise BadRequest("completed must be a boolean")
 
     # Update database
-    result = db.todo.update_one({"_id": oid}, {"$set": update_data})
+    result = col.update_one({"_id": oid}, {"$set": update_data})
     
     if result.matched_count == 0:
         raise NotFound(f"{task_id} not found")
         
     # Fetch and return updated document
-    updated_task = db.todo.find_one({"_id": oid})
+    updated_task = col.find_one({"_id": oid})
     updated_task["_id"] = str(updated_task["_id"])
     return jsonify(updated_task)
 
@@ -108,12 +112,13 @@ def update_task(task_id):
 # DELETE Task
 @tasks_bp.route("/tasks/<task_id>", methods=["DELETE"])
 def delete_task(task_id):
+    col = get_collection("todo")
     try:
         oid = ObjectId(task_id)
     except bson_errors.InvalidId:
         raise BadRequest(f"Invalid ID format: {task_id}")
         
-    result = db.todo.delete_one({"_id": oid})
+    result = col.delete_one({"_id": oid})
     
     if result.deleted_count == 0:
         raise NotFound(f"{task_id} not found")
